@@ -6,7 +6,7 @@ from torch.utils.data import TensorDataset, Dataset, DataLoader
 from typing import Dict
 import numpy as np
 from tqdm import tqdm
-from collections import Counter
+from joblib import Parallel, delayed
 
 from .base import SequenceDataset
 
@@ -288,10 +288,13 @@ class ICLDataModule(SequenceDataset):
             all_examples = []
             for i, (example_count, valid_vocab) in enumerate(
                     zip([self.num_examples, self.num_test_examples], [train_vocab, test_vocab])):
-                examples = torch.stack([self.generate_example(
-                    seqlen=self.input_seq_len if i == 0 else self.test_seq_len,
-                    valid_chars=valid_vocab
-                )['input_ids'] for _ in tqdm(range(example_count))])
+                examples = Parallel(n_jobs=os.cpu_count())(
+                    delayed(self.generate_example)(
+                        seqlen=self.input_seq_len if i == 0 else self.test_seq_len,
+                        valid_chars=valid_vocab
+                    ) for _ in tqdm(range(example_count))
+                )
+                examples = [x["input_ids"] for x in examples]
                 examples = torch.unique(examples, dim=0, sorted=False).tolist()
 
                 while len(examples) < example_count:
