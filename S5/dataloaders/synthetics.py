@@ -295,7 +295,6 @@ class ICLDataModule(SequenceDataset):
                     ) for _ in tqdm(range(example_count))
                 )
                 examples = torch.stack([x["input_ids"] for x in examples])
-                examples = torch.unique(examples, dim=0, sorted=False).tolist()
 
                 while len(examples) < example_count:
                     new_example = self.generate_example(
