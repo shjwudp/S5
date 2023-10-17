@@ -1,6 +1,8 @@
 '''Synthetic datasets to test in-context learning ability.'''
 
 import os
+import pathlib
+
 import torch
 from torch.utils.data import TensorDataset, Dataset, DataLoader
 from typing import Dict
@@ -247,13 +249,15 @@ class ICLDataModule(SequenceDataset):
         self.total_seq_len = self.input_seq_len + self.num_extra_seq_len
 
     def generate_induction_head(self, seqlen=None, valid_chars=None):
+        rng = np.random.default_rng()
         return generate_induction_head(self.vocab, seqlen if seqlen is not None else self.input_seq_len,
                                        self.special_vocabs["copy_prefix"], self.induction_len,
-                                       self.induction_num_triggers, self.rng, valid_chars=valid_chars)
+                                       self.induction_num_triggers, rng, valid_chars=valid_chars)
 
     def generate_assoc_recall(self, seqlen=None, valid_chars=None):
+        rng = np.random.default_rng()
         return generate_assoc_recall(self.vocab, seqlen if seqlen is not None else self.input_seq_len, self.num_keys,
-                                     self.rng, allow_dot=self.allow_dot, valid_chars=valid_chars)
+                                     rng, allow_dot=self.allow_dot, valid_chars=valid_chars)
 
     def generate_example(self, seqlen=None, valid_chars=None):
         vocab_seq = self.copy_f(seqlen=seqlen, valid_chars=valid_chars)
@@ -295,6 +299,7 @@ class ICLDataModule(SequenceDataset):
                     ) for _ in tqdm(range(example_count))
                 )
                 examples = torch.stack([x["input_ids"] for x in examples])
+                examples = torch.unique(examples, dim=0, sorted=False).tolist()
 
                 while len(examples) < example_count:
                     new_example = self.generate_example(
@@ -316,6 +321,7 @@ class ICLDataModule(SequenceDataset):
             if self.copy_method in ["majority", "fom1"]:
                 train_tensor[:, 1, :-1 * (self.num_extra_seq_len - 1)] = -100
 
+            pathlib.Path(self.data_dir).mkdir(parents=True, exist_ok=True)
             torch.save(train_tensor, os.path.join(self.data_dir,
                                                   f"train_{self.copy_method}_{self.num_examples}_{self.vocab_size}_{self.input_seq_len}.pt")
                        )
